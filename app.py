@@ -1,162 +1,73 @@
 import streamlit as st
-from utils import fetch_news_articles, generate_report, generate_tts
-import os
-import matplotlib.pyplot as plt
+import joblib
+import numpy as np
+import time 
+import pandas as pd
 
-def main():
-    st.set_page_config(page_title="News Sentiment Analyzer", layout="wide")
-    st.title("📰 Company News Sentiment Analyzer")
+# Load Model, Encoder & Scaler
+model = joblib.load('solar_power_generation_xgbr_model.pkl')
+
+st.set_page_config(page_title="Solar Power Generation Predictor", layout="centered")
+st.image("https://cdn.shopify.com/s/files/1/0493/9834/9974/files/can-solar-generators-power-a-calculator.jpg?v=1685590896", use_container_width=True)
+
+# Custom Styling
+st.markdown("""
+    <h1 style='text-align: center; color: #4CAF50;'>Solar Power Generator Application</h1>
+    <p style='text-align: center;'>Enter Environment Details</p>
+    <hr style='border: 1px solid #4CAF50;'>
+""", unsafe_allow_html=True)
+
+# App Title
+st.markdown("<h1>Solar Power Generation Predictor</h1>", unsafe_allow_html=True)
+st.write("Enter environment details below to predict power generated.")
+
+# Input Section
+st.markdown("---")
+st.subheader("🔹 Environment Details")
+
+# Input Fields
+with st.container():
     
-    # Input section
-    with st.form(key="analysis_form"):
-        company_name = st.text_input("Enter company name:", placeholder="Tesla, Apple, etc.")
-        
-        if 'NEWSAPI_KEY' in st.secrets:
-            api_key = st.secrets['NEWSAPI_KEY']
-            st.info("Using secured NewsAPI key")
-        else:
-            api_key = st.text_input("Enter NewsAPI key:", type="password")
-        
-        submitted = st.form_submit_button("🚀 Analyze News", type="primary")
-    
-    if submitted:
-        if not company_name:
-            st.warning("Please enter a company name")
-            return
-            
-        if not api_key:
-            st.error("API key is required")
-            return
-            
-        with st.spinner("🔍 Fetching and analyzing news..."):
-            try:
-                news_data = fetch_news_articles(company_name, api_key)
-                if not news_data:
-                    st.error("No news found. Try a different company.")
-                    return
-                
-                report = generate_report(news_data, company_name)
-                
-                # 1. Overall Summary
-                with st.expander("📊 Overall Summary", expanded=True):
-                    cols = st.columns(3)
-                    sentiment_dist = report['Comparative Sentiment Score']['Sentiment Distribution']
-                    cols[0].metric("Positive", sentiment_dist['Positive'])
-                    cols[1].metric("Negative", sentiment_dist['Negative'])
-                    cols[2].metric("Neutral", sentiment_dist['Neutral'])
-                    
-                    sentiment = report['Final Sentiment Analysis']
-                    if "Positive" in sentiment:
-                        st.success(sentiment)
-                    elif "Negative" in sentiment:
-                        st.error(sentiment)
-                    else:
-                        st.warning(sentiment)
-                
-                # 2. Articles Display
-                st.header("📰 News Articles")
-                for i, article in enumerate(report["Articles"]):
-                    with st.expander(f"Article {i+1}: {article['Title']}"):
-                        st.caption(f"Sentiment: {article['Sentiment']}")
-                        st.write(article["Summary"])
-                        
-                        if article.get('url') and article['url'] not in ["", "#"]:
-                            st.markdown(f"**Read full article:** [Link]({article['url']})")
-                        else:
-                            st.warning("Original article URL not available")
-                        
-                        st.markdown("**Topics:** " + ", ".join(article['Topics']))
-                
-                # 3. Comparative Analysis
-                with st.expander("🔍 Comparative Analysis"):
-                    # Sentiment Charts
-                    fig, ax = plt.subplots(1, 2, figsize=(10,4))
-                    
-                    # Bar chart
-                    ax[0].bar(
-                        report['Comparative Sentiment Score']['Sentiment Distribution'].keys(),
-                        report['Comparative Sentiment Score']['Sentiment Distribution'].values(),
-                        color=['green', 'red', 'orange']
-                    )
-                    ax[0].set_title("Sentiment Distribution")
-                    
-                    # Pie chart
-                    ax[1].pie(
-                        report['Comparative Sentiment Score']['Sentiment Distribution'].values(),
-                        labels=report['Comparative Sentiment Score']['Sentiment Distribution'].keys(),
-                        autopct='%1.1f%%',
-                        colors=['green', 'red', 'orange']
-                    )
-                    ax[1].set_title("Sentiment Ratio")
-                    st.pyplot(fig)
-                    
-                    # Coverage Differences
-                    st.subheader("Coverage Differences")
-                    for diff in report['Comparative Sentiment Score']['Coverage Differences']:
-                        col1, col2 = st.columns([3,1])
-                        col1.write(f"**Comparison:** {diff['Comparison']}")
-                        col2.write(f"**Impact:** {diff['Impact']}")
-                        st.divider()
-                    
-                    # Topic Analysis
-                    st.subheader("Topic Analysis")
-                    st.write("**Common Topics:** " + 
-                            ", ".join(report['Comparative Sentiment Score']['Topic Overlap']['Common Topics']))
-                    
-                    st.write("**Unique Topics:**")
-                    for unique in report['Comparative Sentiment Score']['Topic Overlap']['Unique Topics']:
-                        for art, topics in unique.items():
-                            st.write(f"- {art}: {', '.join(topics)}")
-                
-                # 4. Audio Summary
-                if report.get('Audio'):
-                    with st.expander("🎧 Hindi Audio Summary", expanded=False):
-                        try:
-                            if not os.path.exists(report['Audio']):
-                                # Prepare articles data with consistent structure
-                                audio_articles = [
-                                    {
-                                        'Title': article['Title'],
-                                       'Summary': article['Summary'][:300] + "..." if len(article['Summary']) > 300 else article['Summary']
-                                    } 
-                                    for article in report['Articles']
-                                ]
+    dist = st.number_input(" Distance to Solar Noon ", min_value=0, max_value=1.5, step=0.1, format='%.4f')
+    temp = st.number_input(" Temperature ", min_value=42, max_value=78, step=1)
+    wind_speed = st.slider(" Wind Speed ", min_value=1.1, max_value=22.1, step=0.1, format='%.1f')
+    wind_direction = st.number_input(" Wind Direction ", min_value=1, max_value=32, step=1)
+    sky_cover = st.slider(" Sky Cover ", min_value=0, max_value=4, step=1)
+    humidity = st.number_input(" Humidity % ", min_value=0, max_value=100, step=1)
+    avg_wind_speed = st.slider(" Average Wind Speed ", min_value=0.0, max_value=30.0, step=1)
+    avg_pressure = st.slider(" Average Pressure ", min_value=29.64, max_value=30.39, step=0.1)
 
-                               # Generate new audio file with both titles and summaries
-                                audio_file = generate_tts(audio_articles, report['Company'])
-                                report['Audio'] = audio_file  # Update report with new file path
 
-                            if os.path.exists(report['Audio']):
-                                # Display audio player
-                                st.audio(report['Audio'], format='audio/mp3')
+# Convert Inputs
+wind_dir_sine = np.sin(2 * np.pi * wind_direction / 360 )
+wind_dir_cosine = np.cos(2 * np.pi * wind_direction / 360 )
 
-                                # Add download button
-                                with open(report['Audio'], "rb") as f:
-                                    st.download_button(
-                                        label="⬇️ Download Full Summary (Hindi)",
-                                        data=f,
-                                        file_name=f"{report['Company']}_news_summary.mp3",
-                                        mime="audio/mp3",
-                                        help="Download the Hindi audio summary of all articles"
-                                    )
+# Define input in dictionary format
+input_dict = {
+    'distance-to-solar-noon': [dist],
+    'temperature': [temp],
+    'wind-speed': [wind_speed],
+    'sky-cover': [sky_cover],
+    'humidity': [humidity],
+    'average-wind-speed-(period)': [avg_wind_speed],
+    'average-pressure-(period)': [avg_pressure],
+    'wind_dir_sin': [wind_dir_sine],
+    'wind_dir_cos': [wind_dir_cosine]
+}
 
-                                # Display what's included in the audio
-                                st.caption("This audio summary includes:")
-                                st.markdown("""
-                                - Company name introduction
-                                - All article titles
-                                - Summarized content for each article
-                                """)
+# Convert to DataFrame
+input_df = pd.DataFrame(input_dict)
 
-                            else:
-                                st.warning("Audio file could not be generated. Please try again.")
+# Predict Button with Loading Animation
+if st.button("🔍 Predict Power Generated"):
+    with st.spinner("Analyzing environment data..."):
+        time.sleep(2)  # Short delay for loading animation
+        prediction = model.predict(input_df)
 
-                        except Exception as e:
-                            st.error(f"Failed to generate audio summary: {str(e)}")
-                            st.error("Please check your internet connection and try again.")
-                
-            except Exception as e:
-                st.error(f"Analysis failed: {str(e)}")
+    # Display Prediction
+    pred = abs(prediction[0])
+    st.success(f"⚡ Estimated Power Output: **{pred:.2f} J**")
 
-if __name__ == "__main__":
-    main()
+# Footer
+st.markdown("---")
+st.markdown("<h5 style='text-align:center;'>Do Visit Us Again ❤️</h5>", unsafe_allow_html=True)

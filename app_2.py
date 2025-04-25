@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
-from sklearn.preprocessing import StandardScaler
+import joblib
 
 # ✅ MUST BE FIRST Streamlit command!
 st.set_page_config(page_title="Solar Power Generation Predictor", layout="wide")
@@ -34,25 +33,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Load model, scaler, and features
-with open('random_forest_model.pkl', 'rb') as f:
-    model = pickle.load(f)
-
-with open('scaler.pkl', 'rb') as f:
-    scaler = pickle.load(f)
-
-with open('features.pkl', 'rb') as f:
-    feature_names = pickle.load(f)
-# Function to make predictions
-def predict_power(input_data):
-    input_df = pd.DataFrame([input_data], columns=feature_names)
-    dummy_row = input_df.copy()
-    dummy_row['power_generated'] = 0
-    scaled_data = scaler.transform(dummy_row)
-    input_scaled = scaled_data[:, :-1]
-    log_prediction = model.predict(input_scaled)
-    prediction = np.exp(log_prediction)[0]
-    return prediction
+# Load the model
+model = joblib.load('solar_power_generation_xgbr_model.pkl')
 
 # Streamlit app
 #st.set_page_config(page_title="Solar Power Generation Predictor", layout="wide")
@@ -68,36 +50,42 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Solar Position & Weather")
-    distance_to_solar_noon = st.slider("Distance to Solar Noon (degrees)", -180.0, 180.0, 0.0, 0.1)
-    temperature = st.slider("Temperature (°C)", -20.0, 50.0, 25.0, 0.1)
-    wind_speed = st.slider("Wind Speed (km/h)", 0.0, 100.0, 10.0, 0.1)
-    sky_cover = st.slider("Sky Cover (oktas)", 0.0, 8.0, 2.0, 0.1)
+    dist = st.number_input("📍 Distance to Solar Noon", min_value=0.0, max_value=1.5, step=0.1, format='%.4f')
+    wind_speed = st.slider("🌬️ Wind Speed (mph)", min_value=1.1, max_value=22.1, step=0.1, format='%.1f')
+    sky_cover = st.slider("☁️ Sky Cover", min_value=0, max_value=4, step=1)
+    avg_wind_speed = st.slider("📏 Avg Wind Speed (Period)", min_value=0.0, max_value=30.0, step=1.0)
 
 with col2:
-    st.subheader("Atmospheric Conditions")
-    wind_direction = st.slider("Wind Direction (degrees)", 0.0, 360.0, 180.0, 1.0)
-    visibility = st.slider("Visibility (km)", 0.0, 50.0, 10.0, 0.1)
-    humidity = st.slider("Humidity (%)", 0.0, 100.0, 50.0, 0.1)
-    average_pressure = st.slider("Average Pressure (hPa)", 800.0, 1100.0, 1013.0, 0.1)
+    temp = st.number_input("🌡️ Temperature (°C)", min_value=42, max_value=78, step=1)
+    wind_direction = st.number_input("🧭 Wind Direction (1-32)", min_value=1, max_value=32, step=1)
+    humidity = st.number_input("💧 Humidity (%)", min_value=0, max_value=100, step=1)
+    avg_pressure = st.slider("🔽 Avg Pressure (inHg)", min_value=29.64, max_value=30.39, step=0.1)
 
-input_data = {
-    'distance_to_solar_noon': distance_to_solar_noon,
-    'temperature': temperature,
-    'wind_direction': wind_direction,
-    'wind_speed': wind_speed,
-    'sky_cover': sky_cover,
-    'visibility': visibility,
-    'humidity': humidity,
-    'average_pressure': average_pressure
+# Convert Inputs
+wind_dir_sine = np.sin(2 * np.pi * wind_direction / 360 )
+wind_dir_cosine = np.cos(2 * np.pi * wind_direction / 360 )
+
+# Define input in dictionary format
+input_dict = {
+    'distance-to-solar-noon': [dist],
+    'temperature': [temp],
+    'wind-speed': [wind_speed],
+    'sky-cover': [sky_cover],
+    'humidity': [humidity],
+    'average-wind-speed-(period)': [avg_wind_speed],
+    'average-pressure-(period)': [avg_pressure],
+    'wind_dir_sin': [wind_dir_sine],
+    'wind_dir_cos': [wind_dir_cosine]
 }
 
-missing_features = set(feature_names) - set(input_data.keys()) - {'power_generated'}
-if missing_features:
-    st.error(f"Missing features in input: {missing_features}")
+# Convert to DataFrame
+input_df = pd.DataFrame(input_dict)
+
 
 if st.button('Predict Power Generation'):
     try:
-        prediction = predict_power(input_data)
+        # Make predictions
+        prediction = model.predict(input_df)
         st.success(f"Predicted Power Generation: {prediction:.2f} MW")
 
         st.subheader("Prediction Results")
@@ -105,17 +93,17 @@ if st.button('Predict Power Generation'):
         with col1:
             st.metric("Power Output", f"{prediction:.2f} MW")
         with col2:
-            efficiency = (prediction / 10) * 100
+            efficiency = (prediction / 33500) * 100
             st.metric("Estimated Efficiency", f"{efficiency:.1f}%")
         with col3:
-            status = "Low ☁️" if prediction < 2 else "Moderate ⛅" if prediction < 5 else "High ☀️"
+            status = "Low ☁️" if prediction < 10000 else "Moderate ⛅" if prediction < 20000 else "High ☀️"
             st.metric("Generation Status", status)
 
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
 
 st.sidebar.header("About")
-st.sidebar.info("This predictive model uses a Random Forest algorithm trained on solar power data.")
+st.sidebar.info("This predictive model uses a XGBRegressor algorithm trained on solar power data.")
 
-st.sidebar.header("Model Features")
-st.sidebar.write(feature_names)
+# st.sidebar.header("Model Features")
+# st.sidebar.write(feature_names)

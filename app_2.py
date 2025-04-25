@@ -85,7 +85,7 @@ input_df = pd.DataFrame(input_dict)
 if st.button('Predict Power Generation'):
     try:
         # Make predictions
-        prediction = model.predict(input_df)
+        prediction = model.predict(input_df)[0]
         st.success(f"Predicted Power Generation: {prediction:.2f} MW")
 
         st.subheader("Prediction Results")
@@ -105,5 +105,6 @@ if st.button('Predict Power Generation'):
 st.sidebar.header("About")
 st.sidebar.info("This predictive model uses a XGBRegressor algorithm trained on solar power data.")
 
-# st.sidebar.header("Model Features")
-# st.sidebar.write(feature_names)
+feature_names = ['Distance', 'Temperature', 'Wind Direction','Wind Speed', 'Sky Cover','Humidity','Average Wind Speed','Average Pressure']
+st.sidebar.header("Model Features")
+st.sidebar.write(feature_names)

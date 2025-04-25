@@ -49,7 +49,7 @@ Adjust the input parameters using the sliders and see the predicted power output
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("Solar Position & Weather")
+    # st.subheader("Solar Position & Weather")
     dist = st.number_input("📍 Distance to Solar Noon", min_value=0.0, max_value=1.5, step=0.1, format='%.4f')
     wind_speed = st.slider("🌬️ Wind Speed (mph)", min_value=1.1, max_value=22.1, step=0.1, format='%.1f')
     sky_cover = st.slider("☁️ Sky Cover", min_value=0, max_value=4, step=1)
@@ -105,6 +105,15 @@ if st.button('Predict Power Generation'):
 st.sidebar.header("About")
 st.sidebar.info("This predictive model uses a XGBRegressor algorithm trained on solar power data.")
 
-feature_names = ['Distance', 'Temperature', 'Wind Direction','Wind Speed', 'Sky Cover','Humidity','Average Wind Speed','Average Pressure']
+# feature_names = ['Distance', 'Temperature', 'Wind Direction','Wind Speed', 'Sky Cover','Humidity','Average Wind Speed','Average Pressure']
 st.sidebar.header("Model Features")
-st.sidebar.write(feature_names)
+st.sidebar.markdown("""
+1. **Distance to Solar Noon**  
+2. **Temperature**  
+3. **Wind Direction**  
+4. **Wind Speed**  
+5. **Sky Cover**  
+6. **Humidity**  
+7. **Average Wind Speed (Period)**  
+8. **Average Pressure (Period)**
+""")
